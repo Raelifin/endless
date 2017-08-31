@@ -20,7 +20,7 @@ def confuse_tomar(tomar):
         tomar['sequential_confusion'] = len(tomar['statements_of_confusion']) - 1
     return tomar
 
-def play_game():
+def play_game(get_input):
     location = {
         'name': "Starting Laboratory",
         'position': "36 degrees and 4101 meters from the _guhi_ nexus, 12 meters above the weave",
@@ -81,17 +81,17 @@ def play_game():
 
     raise NotImplementedError()
 
-def print_help():
+def print_help(get_input):
     print("Spellbinder is a minimal, single-player version of Waving Hands.")
     print("See: http://www.gamecabinet.com/rules/WavingHands.html")
 
-def get_input():
+def get_input_from_stdin():
     result = ""
     while result == "":
         result = input("> ")
     return result
 
-def get_int_input(range_):
+def get_int_input(range_, get_input):
     result = None
     while result is None:
         try:
@@ -104,17 +104,17 @@ def get_int_input(range_):
             result = None
     return result
 
-def menu(menu_name, options):
+def menu(menu_name, options, get_input):
     while True:
         print("")
         print("{}:".format(menu_name))
         for i in range(len(options)):
             print("{}) {}".format(i, options[i][0]))
-        command = get_int_input(range(len(options)))
+        command = get_int_input(range(len(options)), get_input)
         action = options[command][1]
         if action is None:
             return  # Exit menu
-        action()
+        action(get_input)
 
 def print_title():
     # http://patorjk.com/software/taag/
@@ -127,10 +127,14 @@ def print_title():
  | |____| | | | (_| | |  __/\__ \__ \\
  |______|_| |_|\__,_|_|\___||___/___/""")
 
-print_title()
-options = [
-    ("Play Game", play_game),
-    ("Help", print_help),
-    ("Quit", None),
-]
-menu("Main Menu", options)
+def main(get_input=get_input_from_stdin):
+    print_title()
+    options = [
+        ("Play Game", play_game),
+        ("Help", print_help),
+        ("Quit", None),
+    ]
+    menu("Main Menu", options, get_input)
+
+if __name__ == "__main__":
+    main()
