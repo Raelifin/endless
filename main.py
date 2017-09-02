@@ -95,6 +95,8 @@ def play_game(get_input, output):
         output("Alright. We're here. Let's see if we can figure out why you're not making sense.\nTry _shak_ and we'll start the first test.")
 
     speech = get_input()
+    if speech == "shta":
+        output(spell__shta(location))
 
     raise NotImplementedError()
 

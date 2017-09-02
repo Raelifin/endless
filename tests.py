@@ -5,7 +5,7 @@ import main
 import main2
 
 class EndOfTest(Exception):
-    def __str__(self):
+    def __repr__(self):
         return "[END OF TEST]"
 
 class TestInputSource(object):
@@ -27,7 +27,7 @@ class TestOutputBuffer(object):
         self.buffer = []
 
     def __call__(self, text):
-        self.buffer.append(text)
+        self.buffer += text.split('\n')
 
 def try_sequence(game, sequence):
     output_buffer = TestOutputBuffer()
@@ -51,8 +51,8 @@ def simple_test(game, sequence):
 def compare_test(original, refactor, sequence):
     result1, log1 = try_sequence(original, x)
     result2, log2 = try_sequence(refactor, x)
-    log1.append(str(result1))
-    log2.append(str(result2))
+    log1.append(repr(result1))
+    log2.append(repr(result2))
     if log1 == log2:
         sys.stdout.write('.')
         sys.stdout.flush()
@@ -75,3 +75,4 @@ input_set = ['0', 'shta', '2']
 for x in itertools.combinations_with_replacement(input_set, 10):
     compare_test(main.main, main2.main, x)
 print()
+print("The games are the same! Refactor successful!")
