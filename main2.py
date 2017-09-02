@@ -9,15 +9,37 @@ def spell__shta(location):
     result += "\n+--"
     return result
 
-def entity_speak(tomar):
-    return tomar['statements_of_confusion'][tomar['sequential_confusion']]
+def attempt_spell(speech, location, output):
+    if speech == "shta":
+        output(spell__shta(location))
 
-def confuse_tomar(tomar):
+def entity_speak(tomar, output):
+    if tomar['wants_master_to_cast_spell']:
+        output(tomar['statements_of_confusion'][tomar['sequential_confusion']])
+    elif tomar['wants_to_begin_tests'] and tomar['uncertain']:
+        if tomar['sequential_confusion'] > 3:
+            output("Ah, finally...")
+        if tomar['any_trouble']:
+            output("I notice that I am concerned that something went wrong with the binding. I'm going to begin the tests unless you object.")
+        else:
+            output("The binding appears to be a success. Shall we continue with the tests?")
+    elif tomar['wants_to_begin_tests']:
+        output("Yes, I think continuing with the tests is a good idea. You're not making any sense.")
+
+def entity_listen(tomar, speech):
     tomar = copy(tomar)
-    tomar['any_trouble'] = True
-    tomar['sequential_confusion'] += 1
-    if tomar['sequential_confusion'] >= len(tomar['statements_of_confusion']):
-        tomar['sequential_confusion'] = len(tomar['statements_of_confusion']) - 1
+    if speech == "shta":
+        if tomar['wants_master_to_cast_spell']:
+            tomar['wants_master_to_cast_spell'] = False
+        elif tomar['wants_to_begin_tests']:
+            tomar['uncertain'] = False
+    else:
+        tomar['any_trouble'] = True
+        if tomar['wants_to_begin_tests'] and not tomar['wants_master_to_cast_spell']:
+            tomar['uncertain'] = False
+        tomar['sequential_confusion'] += 1
+        if tomar['sequential_confusion'] >= len(tomar['statements_of_confusion']):
+            tomar['sequential_confusion'] = len(tomar['statements_of_confusion']) - 1
     return tomar
 
 def play_game(get_input, output):
@@ -29,6 +51,9 @@ def play_game(get_input, output):
     tomar = {
         'sequential_confusion': 0,
         'any_trouble': False,
+        'wants_master_to_cast_spell': True,
+        'wants_to_begin_tests': True,
+        'uncertain': True,
         'statements_of_confusion': [
             "What say you, Master?",
             "I don't understand, Master.",
@@ -50,36 +75,20 @@ def play_game(get_input, output):
         ],
     }
 
+    speech = None
+
     output("")
-    output(entity_speak(tomar))
+    entity_speak(tomar, output)
+    while tomar['wants_master_to_cast_spell']:
+        speech = get_input()
+        attempt_spell(speech, location, output)
+        tomar = entity_listen(tomar, speech)
+        entity_speak(tomar, output)
+
     speech = get_input()
-    while speech != "shta":
-        tomar = confuse_tomar(tomar)
-        output(entity_speak(tomar))
-        speech = get_input()
-    output(spell__shta(location))
-    if tomar['sequential_confusion'] > 3:
-        output("Ah, finally...")
-    if tomar['any_trouble']:
-        output("I notice that I am concerned that something went wrong with the binding. I'm going to begin the tests unless you object.")
-        speech = get_input()
-        if speech == "shta":
-            output(spell__shta(location))
-            output("I'm heading downstairs to begin the tests...")
-        else:
-            output("Yes, I think continuing with the tests is a good idea. You're not making any sense.")
-    else:
-        output("The binding appears to be a success. Shall we continue with the tests?")
-        speech = get_input()
-        if speech == "shta":
-            output(spell__shta(location))
-            output("Is that a yes?")
-            speech = get_input()
-            if speech == "shta":
-                output(spell__shta(location))
-            output("Hrm. Yes, I think we should continue with the testing...")
-        else:
-            output("I don't understand you. Something must've gone wrong. I'll head downstairs...")
+    attempt_spell(speech, location, output)
+    tomar = entity_listen(tomar, speech)
+    entity_speak(tomar, output)
 
     location = {
         "name": "Training Hall",
@@ -88,8 +97,10 @@ def play_game(get_input, output):
     }
 
     speech = get_input()
+    attempt_spell(speech, location, output)
+    tomar = entity_listen(tomar, speech)
+
     if speech == "shta":
-        output(spell__shta(location))
         output("Yes, here we are, Master. Go ahead and _shak_ so we may begin the first test.")
     else:
         output("Alright. We're here. Let's see if we can figure out why you're not making sense.\nTry _shak_ and we'll start the first test.")
