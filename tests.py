@@ -2,7 +2,6 @@ import itertools
 import sys
 
 import main
-# import main2
 
 class EndOfTest(Exception):
     def __repr__(self):
@@ -73,10 +72,15 @@ def _compare_test(original, refactor, sequence):
 
 def test_input_combinations():
     input_set = ['0', 'shta', '2']
-    not_implemented_errors_are_okay = False
-    for x in itertools.combinations_with_replacement(input_set, 10):
-        # yield _compare_test, main.main, main2.main, x
-        yield _simple_test, main.main, x, not_implemented_errors_are_okay
+    comparison_testing = True
+    if comparison_testing:
+        import main2
+        for x in itertools.combinations_with_replacement(input_set, 10):
+            yield _compare_test, main.main, main2.main, x
+    else:
+        not_implemented_errors_are_okay = False
+        for x in itertools.combinations_with_replacement(input_set, 10):
+            yield _simple_test, main.main, x, not_implemented_errors_are_okay
 
 if __name__ == "__main__":
     print("Use nosetests on this file.")
