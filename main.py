@@ -3,7 +3,8 @@ from copy import deepcopy as copy
 def spell__shta(location):
     result = "+--"
     result += "\n|Perception: " + location['perception']
-    result += "\n|Position: " + location['position']
+    if False:  # TODO: position power
+        result += "\n|Position: " + location['position']
     result += "\n|Nature: " + (', '.join(location['nature']))
     result += "\n|Foci: " + (', '.join(location['foci']) if location['foci'] else "None")
     result += "\n+--"
@@ -57,26 +58,23 @@ def entity_turn(mind, location, speech):
             else:
                 response = "The binding appears to be a success. Shall we continue with the tests?"
                 mind['primary_control_system'] = 'ask_about_starting_tests'
-            mind['confusion'] = 0
 
     elif mind['primary_control_system'] == 'ask_about_starting_tests':
         if player_intent == "unknown":
-            if mind['confusion'] > 0:
+            if mind['impatience'] > 0:
                 response = "Hrm. Yes, I think we should continue with the testing..."
             else:
                 response = "I don't understand you. Something must've gone wrong. I'll head downstairs..."
             action = "go downstairs"
             mind['primary_control_system'] = 'start_the_tests'
-            mind['confusion'] = 0
         else:
-            if mind['confusion'] > 0:
+            if mind['confusion'] > 0 or mind['impatience'] > 0:
                 response = "Hrm. Yes, I think we should continue with the testing..."
                 action = "go downstairs"
                 mind['primary_control_system'] = 'start_the_tests'
-                mind['confusion'] = 0
             else:
                 response = "Is that a yes?"
-                mind['confusion'] += 1
+                mind['impatience'] += 1
 
     elif mind['primary_control_system'] == 'check_for_objection_to_begin_tests':
         if player_intent == "unknown":
@@ -85,7 +83,6 @@ def entity_turn(mind, location, speech):
             response = "I'm heading downstairs to begin the tests..."
         action = "go downstairs"
         mind['primary_control_system'] = 'start_the_tests'
-        mind['confusion'] = 0
 
     elif mind['primary_control_system'] == 'start_the_tests':
         if player_intent == "unknown":
@@ -95,7 +92,6 @@ def entity_turn(mind, location, speech):
         else:
             raise NotImplementedError()
         mind['primary_control_system'] = 'wait_for_shak'
-        mind['confusion'] = 0
 
     elif mind['primary_control_system'] == 'wait_for_shak':
         raise NotImplementedError()
@@ -108,6 +104,9 @@ def entity_turn(mind, location, speech):
 
     else:
         raise NotImplementedError()
+
+    if player_intent != "unknown":
+        mind['confusion'] = 0
 
     return mind, response, action
 
