@@ -27,6 +27,8 @@ class TestOutputBuffer(object):
         self.buffer = []
 
     def __call__(self, text):
+        if text is None:
+            text = ""
         self.buffer += text.split('\n')
 
 def try_sequence(game, sequence):

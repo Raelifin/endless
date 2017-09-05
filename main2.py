@@ -13,34 +13,64 @@ def attempt_spell(speech, location, output):
     if speech == "shta":
         output(spell__shta(location))
 
-def entity_speak(tomar, output):
-    if tomar['wants_master_to_cast_spell']:
-        output(tomar['statements_of_confusion'][tomar['sequential_confusion']])
-    elif tomar['wants_to_begin_tests'] and tomar['uncertain']:
-        if tomar['sequential_confusion'] > 3:
-            output("Ah, finally...")
-        if tomar['any_trouble']:
-            output("I notice that I am concerned that something went wrong with the binding. I'm going to begin the tests unless you object.")
-        else:
-            output("The binding appears to be a success. Shall we continue with the tests?")
-    elif tomar['wants_to_begin_tests']:
-        output("Yes, I think continuing with the tests is a good idea. You're not making any sense.")
+def entity_turn(mind, location, speech):
+    mind = copy(mind)
+    response = None
+    action = None
 
-def entity_listen(tomar, speech):
-    tomar = copy(tomar)
+    player_intent = "unknown"
     if speech == "shta":
-        if tomar['wants_master_to_cast_spell']:
-            tomar['wants_master_to_cast_spell'] = False
-        elif tomar['wants_to_begin_tests']:
-            tomar['uncertain'] = False
+        player_intent = "shta"
+
+    if mind['primary_control_system'] == 'opening_instruction':
+        if player_intent == "unknown":
+            response = mind['statements_of_confusion'][mind['sequential_confusion']]
+            mind['sequential_confusion'] += 1
+        else:
+            if mind['sequential_confusion'] > 0:
+                response = "Ah, finally...\n" if mind['sequential_confusion'] > 3 else ""
+                response += "I notice that I am concerned that something went wrong with the binding. I'm going to begin the tests unless you object."
+                mind['primary_control_system'] = 'check_for_objection_to_begin_tests'
+            else:
+                response = "The binding appears to be a success. Shall we continue with the tests?"
+                mind['primary_control_system'] = 'ask_about_starting_tests'
+
+    elif mind['primary_control_system'] == 'ask_about_starting_tests':
+        if player_intent == "unknown":
+            if mind['sequential_confusion'] > 0:
+                response = "Hrm. Yes, I think we should continue with the testing..."
+            else:
+                response = "I don't understand you. Something must've gone wrong. I'll head downstairs..."
+            action = "go downstairs"
+            mind['primary_control_system'] = 'start_the_tests'
+        else:
+            if mind['sequential_confusion'] > 0:
+                response = "Hrm. Yes, I think we should continue with the testing..."
+                action = "go downstairs"
+                mind['primary_control_system'] = 'start_the_tests'
+            else:
+                response = "Is that a yes?"
+                mind['sequential_confusion'] += 1
+
+    elif mind['primary_control_system'] == 'check_for_objection_to_begin_tests':
+        if player_intent == "unknown":
+            response = "Yes, I think continuing with the tests is a good idea. You're not making any sense."
+        else:
+            response = "I'm heading downstairs to begin the tests..."
+        action = "go downstairs"
+        mind['primary_control_system'] = 'start_the_tests'
+
+    elif mind['primary_control_system'] == 'start_the_tests':
+        if player_intent == "unknown":
+            response = "Alright. We're here. Let's see if we can figure out why you're not making sense.\nTry _shak_ and we'll start the first test."
+        elif player_intent == "shta":
+            response = "Yes, here we are, Master. Go ahead and _shak_ so we may begin the first test."
+        mind['primary_control_system'] = 'wait_for_shak'
+
     else:
-        tomar['any_trouble'] = True
-        if tomar['wants_to_begin_tests'] and not tomar['wants_master_to_cast_spell']:
-            tomar['uncertain'] = False
-        tomar['sequential_confusion'] += 1
-        if tomar['sequential_confusion'] >= len(tomar['statements_of_confusion']):
-            tomar['sequential_confusion'] = len(tomar['statements_of_confusion']) - 1
-    return tomar
+        raise NotImplementedError()
+
+    return mind, response, action
 
 def play_game(get_input, output):
     location = {
@@ -50,12 +80,8 @@ def play_game(get_input, output):
     }
     tomar = {
         'sequential_confusion': 0,
-        'any_trouble': False,
-        'wants_master_to_cast_spell': True,
-        'wants_to_begin_tests': True,
-        'uncertain': True,
+        'primary_control_system': 'opening_instruction',
         'statements_of_confusion': [
-            "What say you, Master?",
             "I don't understand, Master.",
             "I still don't understand what you're trying to say.\nPerhaps you should _shta_?",
             "The binding must have disoriented you. I encourage you to _shta_ to get your bearings.",
@@ -78,36 +104,19 @@ def play_game(get_input, output):
     speech = None
 
     output("")
-    entity_speak(tomar, output)
-    while tomar['wants_master_to_cast_spell']:
+    output("What say you, Master?")
+    while True:
         speech = get_input()
         attempt_spell(speech, location, output)
-        tomar = entity_listen(tomar, speech)
-        entity_speak(tomar, output)
-
-    speech = get_input()
-    attempt_spell(speech, location, output)
-    tomar = entity_listen(tomar, speech)
-    entity_speak(tomar, output)
-
-    location = {
-        "name": "Training Hall",
-        "position": "36 degrees and 4101 meters from the _guhi_ nexus, 9.5 meters above the weave",
-        "nature": ["Stone", "Artifice", "Metal"],
-    }
-
-    speech = get_input()
-    attempt_spell(speech, location, output)
-    tomar = entity_listen(tomar, speech)
-
-    if speech == "shta":
-        output("Yes, here we are, Master. Go ahead and _shak_ so we may begin the first test.")
-    else:
-        output("Alright. We're here. Let's see if we can figure out why you're not making sense.\nTry _shak_ and we'll start the first test.")
-
-    speech = get_input()
-
-    raise NotImplementedError()
+        tomar, tomar_says, tomar_does = entity_turn(tomar, location, speech)
+        if tomar_says:
+            output(tomar_says)
+        if tomar_does:
+            location = {
+                "name": "Training Hall",
+                "position": "36 degrees and 4101 meters from the _guhi_ nexus, 9.5 meters above the weave",
+                "nature": ["Stone", "Artifice", "Metal"],
+            }
 
 def print_help(get_input, output):
     output("Spellbinder is a minimal, single-player version of Waving Hands.")
