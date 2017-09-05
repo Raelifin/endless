@@ -14,20 +14,21 @@ def attempt_spell(speech, location, output):
     if speech == "shta":
         output(spell__shta(location))
 
-def react_to_nonsense(mind):
-    mind = copy(mind)
+def react_to_nonsense(original_mind):
+    mind = copy(original_mind)
     response = None
 
     try:
         response = mind['statements_of_confusion'][mind['confusion']]
     except IndexError:
         response = mind['statements_of_confusion'][-1]
+    response = response.format(**mind['primary_control_system']['confusion_details'])
     mind['confusion'] += 1
 
     return mind, response
 
-def react_to_lack_of_progress(mind):
-    mind = copy(mind)
+def react_to_lack_of_progress(original_mind):
+    mind = copy(original_mind)
     response = None
 
     try:
@@ -38,8 +39,8 @@ def react_to_lack_of_progress(mind):
 
     return mind, response
 
-def entity_turn(mind, location, speech):
-    mind = copy(mind)
+def entity_turn(original_mind, location, speech):
+    mind = copy(original_mind)
     response = None
     action = None
 
@@ -47,53 +48,53 @@ def entity_turn(mind, location, speech):
     if speech == "shta":
         player_intent = "shta"
 
-    if mind['primary_control_system'] == 'opening_instruction':
+    if mind['primary_control_system']['name'] == 'wait_for_evidence_of_binding_success':
         if player_intent == "unknown":
             mind, response = react_to_nonsense(mind)
         else:
             if mind['confusion'] > 0:
                 response = "Ah, finally...\n" if mind['confusion'] > 3 else ""
                 response += "I notice that I am concerned that something went wrong with the binding. I'm going to begin the tests unless you object."
-                mind['primary_control_system'] = 'check_for_objection_to_begin_tests'
+                mind['primary_control_system'] = {'name': 'check_for_objection_to_begin_tests'}
             else:
                 response = "The binding appears to be a success. Shall we continue with the tests?"
-                mind['primary_control_system'] = 'ask_about_starting_tests'
+                mind['primary_control_system'] = {'name': 'ask_about_starting_tests'}
 
-    elif mind['primary_control_system'] == 'ask_about_starting_tests':
+    elif mind['primary_control_system']['name'] == 'ask_about_starting_tests':
         if player_intent == "unknown":
             if mind['impatience'] > 0:
                 response = "Hrm. Yes, I think we should continue with the testing..."
             else:
                 response = "I don't understand you. Something must've gone wrong. I'll head downstairs..."
             action = "go downstairs"
-            mind['primary_control_system'] = 'start_the_tests'
+            mind['primary_control_system'] = {'name': 'start_the_tests'}
         else:
             if mind['confusion'] > 0 or mind['impatience'] > 0:
                 response = "Hrm. Yes, I think we should continue with the testing..."
                 action = "go downstairs"
-                mind['primary_control_system'] = 'start_the_tests'
+                mind['primary_control_system'] = {'name': 'start_the_tests'}
             else:
                 response = "Is that a yes?"
                 mind['impatience'] += 1
 
-    elif mind['primary_control_system'] == 'check_for_objection_to_begin_tests':
+    elif mind['primary_control_system']['name'] == 'check_for_objection_to_begin_tests':
         if player_intent == "unknown":
             response = "Yes, I think continuing with the tests is a good idea. You're not making any sense."
         else:
             response = "I'm heading downstairs to begin the tests..."
         action = "go downstairs"
-        mind['primary_control_system'] = 'start_the_tests'
+        mind['primary_control_system'] = {'name': 'start_the_tests'}
 
-    elif mind['primary_control_system'] == 'start_the_tests':
+    elif mind['primary_control_system']['name'] == 'start_the_tests':
         if player_intent == "unknown":
             response = "Alright. We're here. Let's see if we can figure out why you're not making sense.\nTry _shak_ and we'll start the first test."
         elif player_intent == "shta":
             response = "Yes, here we are, Master. Go ahead and _shak_ so we may begin the first test."
         else:
             raise NotImplementedError()
-        mind['primary_control_system'] = 'wait_for_shak'
+        mind['primary_control_system'] = {'name': 'wait_for_shak'}
 
-    elif mind['primary_control_system'] == 'wait_for_shak':
+    elif mind['primary_control_system']['name'] == 'wait_for_shak':
         raise NotImplementedError()
         if player_intent == "unknown":
             mind, response = react_to_nonsense(mind)
@@ -108,6 +109,9 @@ def entity_turn(mind, location, speech):
     if player_intent != "unknown":
         mind['confusion'] = 0
 
+    if original_mind['primary_control_system'] != mind['primary_control_system'] or action is not None:
+        mind['impatience'] = 0
+
     return mind, response, action
 
 def play_game(get_input, output):
@@ -118,16 +122,29 @@ def play_game(get_input, output):
         'nature': ["Stone", "Artifice", "Arcana"],
         'foci': [],
     }
+
+    wait_for_evidence_of_binding_success = {
+        'name': 'wait_for_evidence_of_binding_success',
+        'confusion_details': {
+            'suggestions': [
+                "Perhaps you should _shta_?",
+                "I encourage you to _shta_ to get your bearings.",
+                "If you _shta_ it might help you understand.",
+            ],
+            'explanation': "The binding must have disoriented you.",
+        },
+    }
+
     tomar = {
         'confusion': 0,
         'impatience': 0,
-        'primary_control_system': 'opening_instruction',
+        'primary_control_system': wait_for_evidence_of_binding_success,
         'statements_of_confusion': [
             "I don't understand, Master.",
-            "I still don't understand what you're trying to say.\nPerhaps you should _shta_?",
-            "The binding must have disoriented you. I encourage you to _shta_ to get your bearings.",
+            "I still don't understand what you're trying to say.\n{suggestions[0]}",
+            "{explanation} {suggestions[1]}",
             "I don't understand, Master.",
-            "Master, please tell me to _shta_ so I can help you understand.",
+            "{suggestions[2]}",
             "Please Master, I'm trying.",
             "I don't understand.",
             "Have I displeased you?",
@@ -135,6 +152,7 @@ def play_game(get_input, output):
             "Master, your thoughts are madness. Please say something in Liltish.",
             "Please!",
             "...",
+            None,
             "Perhaps something is wrong.",
             "I will meditate on the problem.",
             "When you are ready to _shta_ or anything else that makes sense, I will respond.",
@@ -142,7 +160,8 @@ def play_game(get_input, output):
         ],
         'statements_of_impatience': [
             None,
-            "Any time now..."
+            "Any time now...",
+            None,
         ],
     }
 
