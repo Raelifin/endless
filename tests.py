@@ -40,27 +40,26 @@ def try_sequence(game, sequence):
     except Exception as e:
         return e, output_buffer.buffer
 
-def simple_test(game, sequence):
-    result, log = try_sequence(game, x)
+def _simple_test(game, sequence, not_implemented_errors_are_okay=False):
+    result, log = try_sequence(game, sequence)
     if isinstance(result, EndOfTest):
-        sys.stdout.write('.')
-    elif isinstance(result, NotImplementedError):
-        sys.stdout.write('-')
+        pass
+    elif isinstance(result, NotImplementedError) and not_implemented_errors_are_okay:
+        pass
     else:
-        sys.stdout.write('E')
-    sys.stdout.flush()
+        for line in log:
+            print(line)
+        print(repr(result))
+        raise result
 
-def compare_test(original, refactor, sequence):
-    result1, log1 = try_sequence(original, x)
-    result2, log2 = try_sequence(refactor, x)
+def _compare_test(original, refactor, sequence):
+    result1, log1 = try_sequence(original, sequence)
+    result2, log2 = try_sequence(refactor, sequence)
     log1.append(repr(result1))
     log2.append(repr(result2))
     if log1 == log2:
-        sys.stdout.write('.')
-        sys.stdout.flush()
+        pass
     else:
-        print()
-        print("###### LOG ######")
         for i in range(max(len(log1), len(log2))):
             if log1[i] == log2[i]:
                 print(log1[i])
@@ -70,13 +69,11 @@ def compare_test(original, refactor, sequence):
                 print("\t%s" % log1[i])
                 print("REFACTOR:")
                 print("\t%s" % log2[i])
-                print()
                 raise Exception("Test divergence!")
 
-input_set = ['0', 'shta', '2']
-for x in itertools.combinations_with_replacement(input_set, 10):
-    # compare_test(main.main, main2.main, x)
-    simple_test(main.main, x)
-print()
-# print("The games are the same! Refactor successful!")
-print("Tests complete!")
+def test_input_combinations():
+    input_set = ['0', 'shta', '2']
+    not_implemented_errors_are_okay = False
+    for x in itertools.combinations_with_replacement(input_set, 10):
+        # yield _compare_test, main.main, main2.main, x
+        yield _simple_test, main.main, x, not_implemented_errors_are_okay
