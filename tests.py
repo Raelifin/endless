@@ -2,7 +2,7 @@ import itertools
 import sys
 
 import main
-import main2
+# import main2
 
 class EndOfTest(Exception):
     def __repr__(self):
@@ -75,6 +75,8 @@ def compare_test(original, refactor, sequence):
 
 input_set = ['0', 'shta', '2']
 for x in itertools.combinations_with_replacement(input_set, 10):
-    compare_test(main.main, main2.main, x)
+    # compare_test(main.main, main2.main, x)
+    simple_test(main.main, x)
 print()
-print("The games are the same! Refactor successful!")
+# print("The games are the same! Refactor successful!")
+print("Tests complete!")
