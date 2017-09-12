@@ -10,9 +10,28 @@ def spell__shta(location):
     result += "\n+--"
     return result
 
-def attempt_spell(speech, location, output):
+def spell_shak(original_tomar, location):
+    tomar = copy(original_tomar)
+    tomar['seized_by_player'] = not tomar['seized_by_player']
+    tomar['primary_control_system'] = None
+    tomar['confusion'] = 0
+    tomar['impatience'] = 0
+    result = "+--"
+    if tomar['seized_by_player']:
+        result += "\n|Tomar's mind yields before your power."
+        result += "\n|Your aura is empty."
+    else:
+        result += "\n|You release Tomar's mind."
+    result += "\n+--"
+    return tomar, result
+
+def attempt_spell(speech, tomar, location):
+    description = None
     if speech == "shta":
-        output(spell__shta(location))
+        description = spell__shta(location)
+    elif speech == "shak":
+        tomar, description = spell_shak(tomar, location)
+    return tomar, description
 
 def react_to_nonsense(original_mind):
     mind = copy(original_mind)
@@ -39,16 +58,32 @@ def react_to_lack_of_progress(original_mind):
 
     return mind, response
 
+def build_primary_control_system(mind):
+    if mind['cached_strategy'] is not None:
+        raise NotImplementedError()
+        return
+    else:
+        raise NotImplementedError()
+
 def entity_turn(original_mind, location, speech):
     mind = copy(original_mind)
     response = None
     action = None
 
+    if mind['seized_by_player']:
+        return mind, response, action
+
     player_intent = "unknown"
     if speech == "shta":
         player_intent = "shta"
+    elif speech == "shak":
+        player_intent = "shak"
 
-    if mind['primary_control_system']['name'] == 'wait_for_evidence_of_binding_success':
+    if mind['primary_control_system'] is None:
+        response = "Thank you for using me, Master.\nPlease give me a moment to collect myself."
+        mind['primary_control_system'] = build_primary_control_system(mind)
+
+    elif mind['primary_control_system']['name'] == 'wait_for_evidence_of_binding_success':
         if player_intent == "unknown":
             mind, response = react_to_nonsense(mind)
         else:
@@ -92,10 +127,19 @@ def entity_turn(original_mind, location, speech):
             response = "Yes, here we are, Master. Go ahead and _shak_ so we may begin the first test."
         else:
             raise NotImplementedError()
-        mind['primary_control_system'] = {'name': 'wait_for_shak'}
+        mind['primary_control_system'] = {
+            'name': 'wait_for_shak',
+            'confusion_details': {
+                'suggestions': [
+                    "I think you should _shak_?",
+                    "Having you _shak_ will help both of us understand how to proceed.",
+                    "If you to _shak_ the tests will start.",
+                ],
+                'explanation': "The binding went wrong somehow.",
+            },
+        }
 
     elif mind['primary_control_system']['name'] == 'wait_for_shak':
-        raise NotImplementedError()
         if player_intent == "unknown":
             mind, response = react_to_nonsense(mind)
         elif player_intent == "shta":
@@ -135,9 +179,20 @@ def play_game(get_input, output):
         },
     }
 
+    test_binding = {
+        'active': wait_for_evidence_of_binding_success,
+        'next': [
+            {'if': 'binding_appears_to_be_success',
+             'then': {'name': 'ask_about_starting_tests'}},
+            {},
+        ]
+    }
+
     tomar = {
+        'seized_by_player': False,
         'confusion': 0,
         'impatience': 0,
+        'cached_strategy': test_binding,
         'primary_control_system': wait_for_evidence_of_binding_success,
         'statements_of_confusion': [
             "I don't understand, Master.",
@@ -171,7 +226,9 @@ def play_game(get_input, output):
     output("What say you, Master?")
     while True:
         speech = get_input()
-        attempt_spell(speech, location, output)
+        tomar, spell_says = attempt_spell(speech, tomar, location)
+        if spell_says:
+            output(spell_says)
         tomar, tomar_says, tomar_does = entity_turn(tomar, location, speech)
         if tomar_says:
             output(tomar_says)
