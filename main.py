@@ -25,6 +25,9 @@ def spell_shak(original_tomar, location):
     result += "\n+--"
     return tomar, result
 
+def is_spell(player_intent):
+    return player_intent in ['shta', 'shak']
+
 def attempt_spell(speech, tomar, location):
     description = None
     if speech == "shta":
@@ -43,6 +46,7 @@ def react_to_nonsense(original_mind):
         response = mind['statements_of_confusion'][-1]
     response = response.format(**mind['primary_control_system']['confusion_details'])
     mind['confusion'] += 1
+    mind['beliefs'].add('binding_appears_to_have_problems')
 
     return mind, response
 
@@ -65,6 +69,27 @@ def build_primary_control_system(mind):
     else:
         raise NotImplementedError()
 
+def advance_strategy(original_mind):
+    mind = copy(original_mind)
+    action = None
+
+    if type(mind['cached_strategy']['next']) is list:
+        for option in mind['cached_strategy']['next']:
+            if 'else' in option:
+                mind['cached_strategy'] = option['else']
+            else:
+                if option['if'](mind):
+                    mind['cached_strategy'] = option['then']
+                    break
+    else:
+        mind['cached_strategy'] = mind['cached_strategy']['next']
+    mind['primary_control_system'] = mind['cached_strategy']['active']
+
+    if 'init_action' in mind['primary_control_system'].keys():  # HACK Make this nicer.
+        action = mind['primary_control_system']['init_action']
+
+    return mind, action
+
 def entity_turn(original_mind, location, speech):
     mind = copy(original_mind)
     response = None
@@ -83,72 +108,16 @@ def entity_turn(original_mind, location, speech):
         response = "Thank you for using me, Master.\nPlease give me a moment to collect myself."
         mind['primary_control_system'] = build_primary_control_system(mind)
 
-    elif mind['primary_control_system']['name'] == 'wait_for_evidence_of_binding_success':
-        if player_intent == "unknown":
-            mind, response = react_to_nonsense(mind)
-        else:
-            if mind['confusion'] > 0:
-                response = "Ah, finally...\n" if mind['confusion'] > 3 else ""
-                response += "I notice that I am concerned that something went wrong with the binding. I'm going to begin the tests unless you object."
-                mind['primary_control_system'] = {'name': 'check_for_objection_to_begin_tests'}
-            else:
-                response = "The binding appears to be a success. Shall we continue with the tests?"
-                mind['primary_control_system'] = {'name': 'ask_about_starting_tests'}
-
-    elif mind['primary_control_system']['name'] == 'ask_about_starting_tests':
-        if player_intent == "unknown":
-            if mind['impatience'] > 0:
-                response = "Hrm. Yes, I think we should continue with the testing..."
-            else:
-                response = "I don't understand you. Something must've gone wrong. I'll head downstairs..."
-            action = "go downstairs"
-            mind['primary_control_system'] = {'name': 'start_the_tests'}
-        else:
-            if mind['confusion'] > 0 or mind['impatience'] > 0:
-                response = "Hrm. Yes, I think we should continue with the testing..."
-                action = "go downstairs"
-                mind['primary_control_system'] = {'name': 'start_the_tests'}
-            else:
-                response = "Is that a yes?"
-                mind['impatience'] += 1
-
-    elif mind['primary_control_system']['name'] == 'check_for_objection_to_begin_tests':
-        if player_intent == "unknown":
-            response = "Yes, I think continuing with the tests is a good idea. You're not making any sense."
-        else:
-            response = "I'm heading downstairs to begin the tests..."
-        action = "go downstairs"
-        mind['primary_control_system'] = {'name': 'start_the_tests'}
-
-    elif mind['primary_control_system']['name'] == 'start_the_tests':
-        if player_intent == "unknown":
-            response = "Alright. We're here. Let's see if we can figure out why you're not making sense.\nTry _shak_ and we'll start the first test."
-        elif player_intent == "shta":
-            response = "Yes, here we are, Master. Go ahead and _shak_ so we may begin the first test."
-        else:
-            raise NotImplementedError()
-        mind['primary_control_system'] = {
-            'name': 'wait_for_shak',
-            'confusion_details': {
-                'suggestions': [
-                    "I think you should _shak_?",
-                    "Having you _shak_ will help both of us understand how to proceed.",
-                    "If you to _shak_ the tests will start.",
-                ],
-                'explanation': "The binding went wrong somehow.",
-            },
-        }
-
-    elif mind['primary_control_system']['name'] == 'wait_for_shak':
-        if player_intent == "unknown":
-            mind, response = react_to_nonsense(mind)
-        elif player_intent == "shta":
-            mind, response = react_to_lack_of_progress(mind)
-        else:
-            raise NotImplementedError()
-
     else:
-        raise NotImplementedError()
+        satisfaction = mind['primary_control_system']['is_satisfied'](player_intent, mind)
+        if satisfaction:
+            response = mind['primary_control_system']['say_on_progress'](player_intent, mind)
+            mind, action = advance_strategy(mind)
+        else:
+            if player_intent == "unknown":
+                mind, response = react_to_nonsense(mind)
+            else:
+                mind, response = react_to_lack_of_progress(mind)
 
     if player_intent != "unknown":
         mind['confusion'] = 0
@@ -167,8 +136,16 @@ def play_game(get_input, output):
         'foci': [],
     }
 
-    wait_for_evidence_of_binding_success = {
-        'name': 'wait_for_evidence_of_binding_success',
+    def respond_master_cast_a_spell(player_intent, mind):
+        if mind['confusion'] > 0:
+            response = "Ah, finally...\n" if mind['confusion'] > 3 else ""
+            response += "I notice that I am concerned that something went wrong with the binding. I'm going to begin the tests unless you object."
+            return response
+        else:
+            return "The binding appears to be a success. Shall we continue with the tests?"
+    wait_for_master_to_cast_a_spell = {
+        'name': 'wait_for_master_to_cast_a_spell',
+        'is_satisfied': lambda player_intent, mind: is_spell(player_intent),
         'confusion_details': {
             'suggestions': [
                 "Perhaps you should _shta_?",
@@ -177,14 +154,76 @@ def play_game(get_input, output):
             ],
             'explanation': "The binding must have disoriented you.",
         },
+        'say_on_progress': respond_master_cast_a_spell,
     }
 
+    def respond_asked_about_starting_tests(player_intent, mind):
+        if player_intent == "unknown" and mind['impatience'] == 0:
+            return "I don't understand you. Something must've gone wrong. I'll head downstairs..."
+        else:
+            return "Hrm. Yes, I think we should continue with the testing..."
+    ask_about_starting_tests = {
+        'name': 'ask_about_starting_tests',
+        'is_satisfied': lambda player_intent, mind: (player_intent == "unknown" or mind['confusion'] > 0 or mind['impatience'] > 0),
+        'say_on_progress': respond_asked_about_starting_tests,
+    }
+
+    def respond_checked_for_objection_to_begin_tests(player_intent, mind):
+        if player_intent == "unknown":
+            return "Yes, I think continuing with the tests is a good idea. You're not making any sense."
+        else:
+            return "I'm heading downstairs to begin the tests..."
+    check_for_objection_to_begin_tests = {
+        'name': 'check_for_objection_to_begin_tests',
+        'is_satisfied': lambda player_intent, mind: True,
+        'say_on_progress': respond_checked_for_objection_to_begin_tests,
+    }
+
+    def respond_tests_have_started(player_intent, mind):
+        if player_intent == "unknown":
+            return "Alright. We're here. Let's see if we can figure out why you're not making sense.\nTry _shak_ and we'll start the first test."
+        elif player_intent == "shta":
+            return "Yes, here we are, Master. Go ahead and _shak_ so we may begin the first test."
+        else:
+            raise NotImplementedError()
+    start_the_tests = {
+        'name': 'start_the_tests',
+        'is_satisfied': lambda player_intent, mind: True,
+        'init_action': 'go downstairs',
+        'say_on_progress': respond_tests_have_started,
+    }
+    wait_for_shak = {
+        'name': 'wait_for_shak',
+        'is_satisfied': lambda player_intent, mind: False,
+        'confusion_details': {
+            'suggestions': [
+                "I think you should _shak_?",
+                "Having you _shak_ will help both of us understand how to proceed.",
+                "If you to _shak_ the tests will start.",
+            ],
+            'explanation': "The binding went wrong somehow.",
+        },
+    }
+
+    test_master = {
+        'active': start_the_tests,
+        'next': {
+            'active': wait_for_shak,
+            'next': None,
+        }
+    }
     test_binding = {
-        'active': wait_for_evidence_of_binding_success,
+        'active': wait_for_master_to_cast_a_spell,
         'next': [
-            {'if': 'binding_appears_to_be_success',
-             'then': {'name': 'ask_about_starting_tests'}},
-            {},
+            {'if': lambda mind: 'binding_appears_to_have_problems' not in mind['beliefs'],
+             'then': {
+                 'active': ask_about_starting_tests,
+                 'next': test_master,
+            }},
+            {'else': {
+                'active': check_for_objection_to_begin_tests,
+                'next': test_master,
+            }},
         ]
     }
 
@@ -192,8 +231,9 @@ def play_game(get_input, output):
         'seized_by_player': False,
         'confusion': 0,
         'impatience': 0,
+        'beliefs': set(),
         'cached_strategy': test_binding,
-        'primary_control_system': wait_for_evidence_of_binding_success,
+        'primary_control_system': wait_for_master_to_cast_a_spell,
         'statements_of_confusion': [
             "I don't understand, Master.",
             "I still don't understand what you're trying to say.\n{suggestions[0]}",
@@ -241,8 +281,8 @@ def play_game(get_input, output):
                 'foci': [],
             }
 
-def print_help(get_input, output):
-    output("Spellbinder is a minimal, single-player version of Waving Hands.")
+def show_help(get_input, output):
+    output("Endless is a minimal, single-player version of Waving Hands.")
     output("See: http://www.gamecabinet.com/rules/WavingHands.html")
 
 def get_input_from_stdin():
@@ -293,7 +333,7 @@ def main(get_input=get_input_from_stdin, output=print_to_stdout):
     output(title)
     options = [
         ("Play Game", play_game),
-        ("Help", print_help),
+        ("Help", show_help),
         ("Quit", None),
     ]
     menu("Main Menu", options, get_input, output)
