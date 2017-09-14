@@ -71,8 +71,8 @@ def _compare_test(original, refactor, sequence):
                 raise Exception("Test divergence!")
 
 def test_input_combinations():
-    input_set = ['0', 'shta', '2']
-    sequence_length = 12
+    input_set = ['0', 'shta', 'shak', 'chai', 'reho', '2']
+    sequence_length = 10
     comparison_testing = False
     if comparison_testing:
         import main2
