@@ -1,2 +1,3 @@
-# playing-with-spellbinder
-Just for fun
+# Endless
+A game.
+```python main.py```
