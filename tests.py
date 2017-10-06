@@ -1,19 +1,21 @@
+from typing import Tuple, Generator, Callable, Union, List, Optional
 import itertools
 import sys
 
 import main
+import basic_io as io
 
 class EndOfTest(Exception):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "[END OF TEST]"
 
 class TestInputSource(object):
-    def __init__(self, feed, output):
+    def __init__(self, feed: Tuple[str], output: io.Output) -> None:
         self.feed = feed
         self.output = output
         self.index = 0
 
-    def __call__(self):
+    def __call__(self) -> str:
         if self.index == len(self.feed):
             raise EndOfTest()
         result = self.feed[self.index]
@@ -22,15 +24,15 @@ class TestInputSource(object):
         return result
 
 class TestOutputBuffer(object):
-    def __init__(self):
-        self.buffer = []
+    def __init__(self) -> None:
+        self.buffer: List[str] = []
 
-    def __call__(self, text):
+    def __call__(self, text: Optional[str]) -> None:
         if text is None:
             text = ""
         self.buffer += text.split('\n')
 
-def try_sequence(game, sequence):
+def try_sequence(game: io.MainFunction, sequence: Tuple[str]) -> Tuple[Exception, List[str]]:
     output_buffer = TestOutputBuffer()
     get_input = TestInputSource(sequence, output_buffer)
     try:
@@ -39,7 +41,7 @@ def try_sequence(game, sequence):
     except Exception as e:
         return e, output_buffer.buffer
 
-def _simple_test(game, sequence, not_implemented_errors_are_okay=False):
+def _simple_test(game: io.MainFunction, sequence: Tuple[str], not_implemented_errors_are_okay: bool=False) -> None:
     result, log = try_sequence(game, sequence)
     if isinstance(result, EndOfTest):
         pass
@@ -51,7 +53,7 @@ def _simple_test(game, sequence, not_implemented_errors_are_okay=False):
         print(repr(result))
         raise result
 
-def _compare_test(original, refactor, sequence):
+def _compare_test(original: io.MainFunction, refactor: io.MainFunction, sequence: Tuple[str]) -> None:
     result1, log1 = try_sequence(original, sequence)
     result2, log2 = try_sequence(refactor, sequence)
     log1.append(repr(result1))
@@ -70,18 +72,19 @@ def _compare_test(original, refactor, sequence):
                 print("\t%s" % log2[i])
                 raise Exception("Test divergence!")
 
-def test_input_combinations():
+# The type signature for this test generator is an absolute monster. Ignore it.
+def test_input_combinations():  # type: ignore
     input_set = ['0', 'shta', 'shak', 'chai', 'reho', '2']
     sequence_length = 10
     comparison_testing = False
     if comparison_testing:
         import main2
         for x in itertools.combinations_with_replacement(input_set, sequence_length):
-            yield _compare_test, main.main, main2.main, x
+            yield _compare_test, main.main, main2.main, x  # type: ignore
     else:
         not_implemented_errors_are_okay = False
         for x in itertools.combinations_with_replacement(input_set, sequence_length):
-            yield _simple_test, main.main, x, not_implemented_errors_are_okay
+            yield _simple_test, main.main, x, not_implemented_errors_are_okay  # type: ignore
 
 if __name__ == "__main__":
     print("Use nosetests on this file.")
